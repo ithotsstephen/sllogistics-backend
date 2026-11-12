@@ -23,7 +23,6 @@ class EmployeeProvisioningService
 
         return DB::transaction(function () use ($data): User {
             $temporaryPassword = Str::password(16);
-            $emailOtp = (string) random_int(100000, 999999);
 
             $employee = User::create([
                 ...$data,
@@ -33,13 +32,10 @@ class EmployeeProvisioningService
                 'is_active' => true,
                 'must_change_password' => true,
             ]);
-            $employee->forceFill([
-                'email_otp_hash' => Hash::make($emailOtp),
-                'email_otp_expires_at' => now()->addMinutes(10),
-            ])->save();
+            $employee->forceFill(['email_verified_at' => now()])->save();
 
             Mail::to($employee->email)->send(
-                new NewEmployeeAccountMail($employee, $temporaryPassword, $emailOtp),
+                new NewEmployeeAccountMail($employee, $temporaryPassword),
             );
 
             return $employee;

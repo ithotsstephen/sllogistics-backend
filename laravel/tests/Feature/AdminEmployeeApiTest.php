@@ -13,7 +13,7 @@ class AdminEmployeeApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_api_creates_employee_and_emails_credentials_and_profile(): void
+    public function test_admin_api_creates_verified_employee_and_emails_temporary_password_and_profile(): void
     {
         config(['mail.default' => 'array']);
         Mail::fake();
@@ -39,21 +39,22 @@ class AdminEmployeeApiTest extends TestCase
             ->assertJsonPath('employee.email', 'jordan@example.test')
             ->assertJsonPath('employee.designation', 'Delivery Driver')
             ->assertJsonMissingPath('employee.password')
-            ->assertJsonMissingPath('temporary_password')
-            ->assertJsonMissingPath('otp');
+            ->assertJsonMissingPath('temporary_password');
 
         $employee = User::where('email', 'jordan@example.test')->firstOrFail();
         $this->assertSame('staff', $employee->role);
         $this->assertTrue($employee->must_change_password);
-        $this->assertNotNull($employee->email_otp_hash);
-        $this->assertTrue($employee->email_otp_expires_at->isFuture());
+        $this->assertNotNull($employee->email_verified_at);
+        $this->assertNull($employee->email_otp_hash);
+        $this->assertNull($employee->email_otp_expires_at);
         $this->assertSame($response->json('employee.id'), $employee->id);
 
         Mail::assertSent(NewEmployeeAccountMail::class, function (NewEmployeeAccountMail $mail) use ($employee): bool {
             $this->assertSame($employee->email, $mail->employee->email);
             $this->assertNotEmpty($mail->temporaryPassword);
-            $this->assertMatchesRegularExpression('/^\d{6}$/', $mail->emailOtp);
-            $this->assertTrue(Hash::check($mail->emailOtp, $employee->email_otp_hash));
+            $this->assertTrue(Hash::check($mail->temporaryPassword, $employee->password));
+            $mail->assertSeeInHtml($mail->temporaryPassword);
+            $mail->assertDontSeeInHtml('one-time code');
             $mail->assertSeeInHtml('Delivery Driver');
 
             return true;

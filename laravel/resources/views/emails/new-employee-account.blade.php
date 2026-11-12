@@ -16,7 +16,5 @@
     @endif
 </ul>
 
-<p>Verify your email in the app using this one-time code:</p>
-<p style="font-size: 24px; font-weight: bold; letter-spacing: 4px">{{ $emailOtp }}</p>
-<p>This code expires in 10 minutes. After verification, sign in and change your temporary password before using the app.</p>
+<p>Sign in with these credentials and change your temporary password when prompted.</p>
 <p>If you did not expect this account, contact your SL Logistics administrator.</p>

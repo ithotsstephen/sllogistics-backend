@@ -233,7 +233,7 @@ class AdminController extends Controller
         $provisioning->create($data);
 
         return redirect()->route('admin.employees')
-            ->with('status', 'Employee account created. Login details and email verification code were sent to the employee.');
+            ->with('status', 'Employee account created. Temporary sign-in credentials were emailed to the employee.');
     }
 
     public function updateStaff(Request $request, User $user): RedirectResponse

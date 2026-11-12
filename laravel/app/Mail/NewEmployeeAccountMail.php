@@ -16,7 +16,6 @@ class NewEmployeeAccountMail extends Mailable
     public function __construct(
         public readonly User $employee,
         public readonly string $temporaryPassword,
-        public readonly string $emailOtp,
     ) {}
 
     public function envelope(): Envelope

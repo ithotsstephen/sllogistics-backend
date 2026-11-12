@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function (): void {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
-    Route::post('/verify-email', [AuthController::class, 'verifyEmail'])->middleware('throttle:5,1');
 });
 
 Route::prefix('admin/auth')->group(function (): void {

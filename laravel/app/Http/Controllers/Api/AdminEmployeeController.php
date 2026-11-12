@@ -22,7 +22,7 @@ class AdminEmployeeController extends Controller
         $employee = $provisioning->create($data);
 
         return response()->json([
-            'message' => 'Employee account created. Onboarding credentials and email verification code were sent to the employee email address.',
+            'message' => 'Employee account created. Temporary sign-in credentials were sent to the employee email address.',
             'employee' => $employee->only([
                 'id',
                 'name',
