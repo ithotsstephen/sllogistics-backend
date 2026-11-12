@@ -8,9 +8,21 @@ Laravel 12 API and browser-based administrator dashboard for the SL Logistics at
 - Composer
 - MySQL 8+ for production (SQLite is configured for local development)
 
+## Repository layout
+
+The repository root is arranged for Hostinger deployment:
+
+```text
+laravel/       Laravel application, environment file, and Composer dependencies
+public_html/   Domain document root; contains index.php and public assets
+```
+
+Keep `laravel/.env` private and outside `public_html`. The public front controller loads the application from the sibling `laravel/` directory.
+
 ## Local setup
 
 ```sh
+cd laravel
 composer install
 cp .env.example .env
 php artisan key:generate
@@ -32,17 +44,19 @@ Signed-in administrators can open the password-change page from the profile icon
 
 ## Production database and deployment
 
-On Hostinger, create the database, user, and mailbox in hPanel and allowlist the deployment server IP if remote MySQL access requires it. Use [`.env.hostinger.example`](./.env.hostinger.example) as a checklist for the production settings, but enter actual database and mailbox values only in the server's private `.env`; do not upload it to `public_html` or commit credentials. Confirm the SMTP host, port, and encryption mode in your Hostinger email settings. The local and production `.env` files are independent, so each environment can use its own database and mail server. The app does not connect to any remote database during local development unless your local `.env` is deliberately configured to do so.
+On Hostinger, create the database, user, and mailbox in hPanel and allowlist the deployment server IP if remote MySQL access requires it. Use [`laravel/.env.hostinger.example`](./laravel/.env.hostinger.example) as a checklist for production settings, but enter actual database and mailbox values only in the server's private `laravel/.env`; never put it in `public_html` or commit credentials. Confirm the SMTP host, port, and encryption mode in your Hostinger email settings.
 
-Deploy the Laravel project with the web document root pointing to `public/`. Set `APP_ENV=production`, `APP_DEBUG=false`, a unique `APP_KEY`, the database and SMTP settings, and run `php artisan config:clear` after changing the private `.env`, then:
+For Hostinger Git deployment, configure the repository deployment directory as the account directory that contains both `laravel/` and `public_html/`—not `public_html/` itself. Keep the domain's document root set to `public_html/`. Configure the deployment hook to run `./deploy.sh` after each checkout or update. The script installs production Composer dependencies and refreshes Laravel's optimized caches; it does not change the database schema.
+
+Create `laravel/.env` on the server before the first deployment hook runs. Set `APP_ENV=production`, `APP_DEBUG=false`, a unique `APP_KEY`, and the database and SMTP settings. Run these once from the `laravel/` directory when appropriate:
 
 ```sh
+php artisan key:generate
+php artisan config:clear
 php artisan migrate --force
-php artisan db:seed --force
-php artisan optimize
 ```
 
-Use a unique administrator password held outside source control. Rotate any credentials that have been shared in chat or another untrusted location.
+Back up the database before applying migrations. Do not automatically run migrations or seeders on every Git push. Seed the first administrator only after setting `ADMIN_EMAIL` and `ADMIN_PASSWORD` in the private `.env` and confirming the account does not already exist. Use a unique administrator password held outside source control. Rotate any credentials that have been shared in chat or another untrusted location.
 
 ## Mobile API
 
@@ -79,5 +93,6 @@ Create the first administrator using the database seeder and environment variabl
 ## Tests
 
 ```sh
+cd laravel
 php artisan test
 ```
