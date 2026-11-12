@@ -4,7 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AdminStaffTest extends TestCase
@@ -13,16 +13,18 @@ class AdminStaffTest extends TestCase
 
     public function test_admin_can_create_staff_with_a_designation(): void
     {
-        config(['mail.default' => 'array']);
-        Mail::fake();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
 
         $this->actingAs($admin, 'web')->post(route('admin.staff.store'), [
             'name' => 'Taylor Driver',
             'designation' => 'Delivery Driver',
             'email' => 'taylor@example.test',
-        ])->assertRedirect(route('admin.employees'));
+        ])->assertRedirect(route('admin.employees'))
+            ->assertSessionHas('status')
+            ->assertSessionHas('created_employee_email', 'taylor@example.test')
+            ->assertSessionHas('temporary_password');
 
+        $employee = User::where('email', 'taylor@example.test')->firstOrFail();
         $this->assertDatabaseHas('users', [
             'name' => 'Taylor Driver',
             'designation' => 'Delivery Driver',
@@ -30,6 +32,16 @@ class AdminStaffTest extends TestCase
             'username' => 'taylor@example.test',
             'role' => 'staff',
         ]);
+        $temporaryPassword = session('temporary_password');
+        $this->assertTrue(Hash::check($temporaryPassword, $employee->password));
+
+        $this->get(route('admin.employees'))
+            ->assertOk()
+            ->assertSee($temporaryPassword)
+            ->assertSee('shown once');
+        $this->get(route('admin.employees'))
+            ->assertOk()
+            ->assertDontSee($temporaryPassword);
     }
 
     public function test_admin_can_update_staff_designation(): void

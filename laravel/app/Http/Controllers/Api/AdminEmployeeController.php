@@ -19,10 +19,11 @@ class AdminEmployeeController extends Controller
             'address' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $employee = $provisioning->create($data);
+        $result = $provisioning->create($data);
+        $employee = $result['employee'];
 
         return response()->json([
-            'message' => 'Employee account created. Temporary sign-in credentials were sent to the employee email address.',
+            'message' => 'Employee account created. Share the temporary password with the employee securely.',
             'employee' => $employee->only([
                 'id',
                 'name',
@@ -34,6 +35,7 @@ class AdminEmployeeController extends Controller
                 'is_active',
                 'email_verified_at',
             ]),
-        ], 201);
+            'temporary_password' => $result['temporary_password'],
+        ], 201)->header('Cache-Control', 'no-store, private');
     }
 }

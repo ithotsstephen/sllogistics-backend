@@ -230,10 +230,12 @@ class AdminController extends Controller
             'address' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $provisioning->create($data);
+        $result = $provisioning->create($data);
 
         return redirect()->route('admin.employees')
-            ->with('status', 'Employee account created. Temporary sign-in credentials were emailed to the employee.');
+            ->with('status', 'Employee account created. Copy the temporary password and give it to the employee securely.')
+            ->with('created_employee_email', $result['employee']->email)
+            ->with('temporary_password', $result['temporary_password']);
     }
 
     public function updateStaff(Request $request, User $user): RedirectResponse

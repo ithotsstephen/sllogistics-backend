@@ -30,8 +30,6 @@ touch database/database.sqlite
 php artisan migrate
 ```
 
-The local `.env.example` uses SMTP on `127.0.0.1:1025`, intended for a local mail catcher such as Mailpit. Start Mailpit before creating employees; its web inbox is usually available at `http://127.0.0.1:8025`. These messages are captured locally and are not delivered to real inboxes. Alternatively, configure your mailbox provider's SMTP settings in your local `.env` to send real email during development.
-
 Set `ADMIN_NAME`, `ADMIN_USERNAME`, `ADMIN_EMAIL`, and a strong `ADMIN_PASSWORD` in `.env`, then create the first administrator. Admins can sign in using either username or email:
 
 ```sh
@@ -39,16 +37,16 @@ php artisan db:seed
 php artisan serve
 ```
 
-Open `/admin/login` for the web dashboard. The dedicated employee module is at `/admin/employees`; administrators can add employees, edit profile details, review leave-day totals, and block or reactivate accounts. There is no employee self-registration. Admin-created accounts are immediately eligible to sign in without an email OTP; their temporary password is emailed, and they must change it before using protected staff features. Blocking an account also revokes its API tokens. The dashboard summarizes active employees, completed hours today and this week, and monthly completed hours for the selected year. Open shifts without a recorded time-out are excluded from hour totals. The dedicated time-tracking module is at `/admin/time-tracking` and lists each employee's daily time-in, time-out, hours, location, and work description with month/year and employee filters. The dedicated leave module is at `/admin/leave-management` and allows administrators to filter requests by status, review request details, and approve or reject pending requests. Set `APP_TIMEZONE` to the organization's timezone. Employee provisioning requires a working SMTP server to email temporary passwords; local development can use Mailpit, while production must use a real mailbox configured privately in Hostinger's `.env`. The app intentionally returns HTTP 503 when `MAIL_MAILER=log` so credentials are not falsely reported as emailed or written to application logs.
+Open `/admin/login` for the web dashboard. The dedicated employee module is at `/admin/employees`; administrators can add employees, edit profile details, review leave-day totals, and block or reactivate accounts. There is no employee self-registration. Admin-created accounts are immediately eligible to sign in without email or OTP. The generated temporary password is shown once to the admin after creation and must be shared with the employee securely; the employee must change it before using protected staff features. The authenticated admin API likewise returns the temporary password once in its employee-creation response. Blocking an account also revokes its API tokens. The dashboard summarizes active employees, completed hours today and this week, and monthly completed hours for the selected year. Open shifts without a recorded time-out are excluded from hour totals. The dedicated time-tracking module is at `/admin/time-tracking` and lists each employee's daily time-in, time-out, hours, location, and work description with month/year and employee filters. The dedicated leave module is at `/admin/leave-management` and allows administrators to filter requests by status, review request details, and approve or reject pending requests. Set `APP_TIMEZONE` to the organization's timezone.
 Signed-in administrators can open the password-change page from the profile icon in the top-right of the admin pages. The form requires the current password and a confirmed new password of at least 12 characters.
 
 ## Production database and deployment
 
-On Hostinger, create the database, user, and mailbox in hPanel and allowlist the deployment server IP if remote MySQL access requires it. Use [`laravel/.env.hostinger.example`](./laravel/.env.hostinger.example) as a checklist for production settings, but enter actual database and mailbox values only in the server's private `laravel/.env`; never put it in `public_html` or commit credentials. Confirm the SMTP host, port, and encryption mode in your Hostinger email settings.
+On Hostinger, create the database and user in hPanel and allowlist the deployment server IP if remote MySQL access requires it. Use [`laravel/.env.hostinger.example`](./laravel/.env.hostinger.example) as a checklist for production settings, but enter actual database values only in the server's private `laravel/.env`; never put it in `public_html` or commit credentials.
 
 For Hostinger Git deployment, configure the repository deployment directory as the account directory that contains both `laravel/` and `public_html/`—not `public_html/` itself. Keep the domain's document root set to `public_html/`. Configure the deployment hook to run `./deploy.sh` after each checkout or update. The script installs production Composer dependencies and refreshes Laravel's optimized caches; it does not change the database schema.
 
-Create `laravel/.env` on the server before the first deployment hook runs. Set `APP_ENV=production`, `APP_DEBUG=false`, a unique `APP_KEY`, and the database and SMTP settings. Run these once from the `laravel/` directory when appropriate:
+Create `laravel/.env` on the server before the first deployment hook runs. Set `APP_ENV=production`, `APP_DEBUG=false`, a unique `APP_KEY`, and the database settings. Run these once from the `laravel/` directory when appropriate:
 
 ```sh
 php artisan key:generate
@@ -65,7 +63,7 @@ All API routes are under `/api`. Authenticate with a bearer token returned by `P
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/api/admin/auth/login` | Admin username/email and password; returns an admin bearer token |
-| POST | `/api/admin/employees` | Admin bearer token required; creates employee and emails username, temporary password, and profile details |
+| POST | `/api/admin/employees` | Admin bearer token required; creates employee and returns the temporary password once with the profile |
 | POST | `/api/admin/auth/logout` | Revoke current admin bearer token |
 | POST | `/api/auth/login` | Staff email/password sign-in; no email OTP is required |
 | POST | `/api/auth/change-password` | Change temporary password with `current_password`, `password`, and `password_confirmation` |
@@ -80,14 +78,14 @@ Admin API employee onboarding:
 
 1. `POST /api/admin/auth/login` with `{ "login": "admin@example.com", "password": "..." }`; use the returned token as `Authorization: Bearer <token>`.
 2. `POST /api/admin/employees` with `{ "name": "...", "designation": "...", "email": "...", "phone": "...", "address": "..." }`.
-3. The `201` response contains the employee profile (`id`, `name`, `username`, `email`, designation, phone, address, active state, and verification state). The username is the email address. The temporary password is never included in the API response; it is sent to the employee's email.
+3. The `201` response contains the employee profile (`id`, `name`, `username`, `email`, designation, phone, address, active state, and verification state) and a top-level `temporary_password`. The username is the email address. Copy the password from the authenticated response and share it with the employee securely; it is not retrievable later.
 4. The employee signs in with the emailed temporary password at `POST /api/auth/login`, then changes that password before using protected staff endpoints.
 
 Attendance timestamps are generated by the server, one record per staff member per work date. Each attendance response includes `duration_minutes` and `duration_hours`. Leave ranges are inclusive; overlapping pending or approved requests are rejected. Admin decisions and profile management are available in the authenticated web dashboard.
 
 ## Administrator provisioning
 
-Create the first administrator using the database seeder and environment variables described above. Only administrators can create staff accounts, in the dashboard or through the authenticated admin API. The employee username is their email address. An email sends the temporary password and employee profile details; email OTP verification is not used. The API response contains the employee profile but never returns the temporary password. Staff must change the temporary password before using attendance and leave APIs. Configure SMTP securely and encourage an immediate password change.
+Create the first administrator using the database seeder and environment variables described above. Only administrators can create staff accounts, in the dashboard or through the authenticated admin API. The employee username is their email address. No onboarding email or email OTP is used. The dashboard shows the generated password once; the authenticated admin API returns it once in the create response. Share it with the employee securely. Staff must change the temporary password before using attendance and leave APIs.
 
 ## Tests
 

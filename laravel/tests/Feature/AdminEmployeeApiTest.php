@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Mail\NewEmployeeAccountMail;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -13,9 +12,9 @@ class AdminEmployeeApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_api_creates_verified_employee_and_emails_temporary_password_and_profile(): void
+    public function test_admin_api_creates_verified_employee_and_returns_temporary_password_once(): void
     {
-        config(['mail.default' => 'array']);
+        config(['mail.default' => 'log']);
         Mail::fake();
 
         $admin = User::factory()->create([
@@ -39,7 +38,8 @@ class AdminEmployeeApiTest extends TestCase
             ->assertJsonPath('employee.email', 'jordan@example.test')
             ->assertJsonPath('employee.designation', 'Delivery Driver')
             ->assertJsonMissingPath('employee.password')
-            ->assertJsonMissingPath('temporary_password');
+            ->assertJsonStructure(['temporary_password'])
+            ->assertHeader('Cache-Control', 'no-store, private');
 
         $employee = User::where('email', 'jordan@example.test')->firstOrFail();
         $this->assertSame('staff', $employee->role);
@@ -48,17 +48,10 @@ class AdminEmployeeApiTest extends TestCase
         $this->assertNull($employee->email_otp_hash);
         $this->assertNull($employee->email_otp_expires_at);
         $this->assertSame($response->json('employee.id'), $employee->id);
-
-        Mail::assertSent(NewEmployeeAccountMail::class, function (NewEmployeeAccountMail $mail) use ($employee): bool {
-            $this->assertSame($employee->email, $mail->employee->email);
-            $this->assertNotEmpty($mail->temporaryPassword);
-            $this->assertTrue(Hash::check($mail->temporaryPassword, $employee->password));
-            $mail->assertSeeInHtml($mail->temporaryPassword);
-            $mail->assertDontSeeInHtml('one-time code');
-            $mail->assertSeeInHtml('Delivery Driver');
-
-            return true;
-        });
+        $temporaryPassword = $response->json('temporary_password');
+        $this->assertIsString($temporaryPassword);
+        $this->assertTrue(Hash::check($temporaryPassword, $employee->password));
+        Mail::assertNothingOutgoing();
     }
 
     public function test_employee_creation_api_rejects_non_admin_tokens(): void
@@ -72,17 +65,20 @@ class AdminEmployeeApiTest extends TestCase
         ])->assertForbidden();
     }
 
-    public function test_employee_creation_does_not_claim_email_was_sent_with_log_mailer(): void
+    public function test_employee_creation_works_with_email_disabled(): void
     {
         config(['mail.default' => 'log']);
+        Mail::fake();
         $admin = User::factory()->create(['role' => 'admin', 'is_active' => true]);
         $token = $admin->createToken('admin-api', ['admin'])->plainTextToken;
 
         $this->withToken($token)->postJson('/api/admin/employees', [
             'name' => 'Mail Not Configured',
             'email' => 'no-mail@example.test',
-        ])->assertServiceUnavailable();
+        ])->assertCreated()
+            ->assertJsonStructure(['temporary_password']);
 
-        $this->assertDatabaseMissing('users', ['email' => 'no-mail@example.test']);
+        $this->assertDatabaseHas('users', ['email' => 'no-mail@example.test']);
+        Mail::assertNothingOutgoing();
     }
 }

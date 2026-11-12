@@ -33,10 +33,18 @@
     <p class="muted">Create employee accounts, edit staff profiles, and block or reactivate access.</p>
     @if (session('status')) <div class="notice">{{ session('status') }}</div> @endif
     @if ($errors->any()) <div class="error">{{ $errors->first() }}</div> @endif
+    @if (session('temporary_password'))
+        <div class="notice">
+            <strong>Temporary password (shown once):</strong>
+            <code>{{ session('temporary_password') }}</code>
+            <p>Login email: {{ session('created_employee_email') }}. Copy this password now and share it with the employee securely. It will not be shown again.</p>
+        </div>
+    @endif
 
     <div class="grid">
         <section>
             <h2>Add employee</h2>
+            <p class="muted">A temporary password will be shown once after the account is created. No email will be sent.</p>
             <form method="post" action="{{ route('admin.staff.store') }}">
                 @csrf
                 <label>Name <input name="name" value="{{ old('name') }}" required maxlength="120"></label>

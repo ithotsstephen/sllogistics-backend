@@ -2,26 +2,20 @@
 
 namespace App\Services;
 
-use App\Mail\NewEmployeeAccountMail;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
 class EmployeeProvisioningService
 {
     /**
      * @param  array{name: string, designation?: ?string, email: string, phone?: ?string, address?: ?string}  $data
+     * @return array{employee: User, temporary_password: string}
      */
-    public function create(array $data): User
+    public function create(array $data): array
     {
-        if (config('mail.default') === 'log') {
-            throw new ServiceUnavailableHttpException(null, 'Employee onboarding email is disabled because MAIL_MAILER is set to log. Configure a real SMTP mailer and try again.');
-        }
-
-        return DB::transaction(function () use ($data): User {
+        return DB::transaction(function () use ($data): array {
             $temporaryPassword = Str::password(16);
 
             $employee = User::create([
@@ -34,11 +28,10 @@ class EmployeeProvisioningService
             ]);
             $employee->forceFill(['email_verified_at' => now()])->save();
 
-            Mail::to($employee->email)->send(
-                new NewEmployeeAccountMail($employee, $temporaryPassword),
-            );
-
-            return $employee;
+            return [
+                'employee' => $employee,
+                'temporary_password' => $temporaryPassword,
+            ];
         });
     }
 }
